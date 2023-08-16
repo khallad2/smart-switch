@@ -1,29 +1,55 @@
+
 #include <Servo_ESP32.h>
+#include <WiFi.h>
+#include <ESPAsyncWebSrv.h>
 
 static const int servoPin = 14; //printed G14 on the board
 
-Servo_ESP32 servo1;
+Servo_ESP32 myServo;
 
-int angle =0;
-int angleStep = 5;
+const char* ssid = "Bananenkarton";
+const char* password = "88542283243511630573";
+bool switched = false;
 
-int angleMin =0;
-int angleMax = 180;
+AsyncWebServer server(80);
 
 void setup() {
-    Serial.begin(9600);
-    myServo.attach(servoPin); // Attach the servo to the specified pin
-    myServo.write(0); 
+    Serial.begin(115200);
+    WiFi.begin(ssid, password);
+
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(1000);
+        Serial.println("Connecting to WiFi...");
+    }
+
+    Serial.println("Connected to WiFi");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+    myServo.attach(servoPin);
+    myServo.write(0);
+
+    server.on("/setAngle", HTTP_GET, [](AsyncWebServerRequest *request){
+        if (request->hasParam("switch")) {
+            String value = request->getParam("switch")->value();
+            int mySwitch = value.toInt();
+            if(mySwitch == 1) {
+              toggleServo();
+            } else {
+              request->send(400, "text/plain", "Invalid switch parameter");
+            }
+            request->send(200, "text/plain", "Angle set to: " + value);
+        } else {
+            request->send(400, "text/plain", "Missing switch parameter");
+        }
+    });
+    server.begin();
 }
 
-void loop() {
-    if (Serial.available() > 0) {
-    int paramValue = Serial.parseInt(); // Read the parameter value from Serial Monitor
-    
-    if (paramValue == 0) {
-      myServo.write(0); // Move the servo to angle 0 degrees
-    } else if (paramValue == 1) {
-      myServo.write(180); // Move the servo to angle 180 degrees
-    }
-  }
+void toggleServo(){
+  int currentAngle = myServo.read();
+  int newAngle = (currentAngle == 0) ? 180 : 0;
+  switched = !switched;
+  myServo.write(newAngle);
 }
+
+void loop() {}
